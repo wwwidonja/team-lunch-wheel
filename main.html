@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Team Lunch Wheel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #020617;
+      --accent: #22c55e;
+      --accent-soft: rgba(34, 197, 94, 0.15);
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --danger: #f97373;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #1f2937 0, #020617 60%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 1000px;
+      background: linear-gradient(145deg, #020617, #020617 60%, #111827 100%);
+      border-radius: 24px;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      box-shadow:
+        0 24px 60px rgba(15, 23, 42, 0.85),
+        0 0 0 1px rgba(15, 23, 42, 0.9);
+      padding: 20px 20px 24px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+      gap: 20px;
+    }
+
+    @media (max-width: 800px) {
+      .app {
+        grid-template-columns: minmax(0, 1fr);
+        padding: 16px;
+      }
+    }
+
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 4px;
+    }
+
+    header h1 {
+      font-size: 1.45rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+    }
+
+    header h1 span.emoji {
+      font-size: 1.7rem;
+    }
+
+    header .subtitle {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .chip {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      background: rgba(15, 23, 42, 0.75);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .wheel-card {
+      border-radius: 18px;
+      background: radial-gradient(circle at top left, #020617, #020617 40%, #020617 60%, #020617 100%);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .wheel-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 20% 0%, rgba(34, 197, 94, 0.18), transparent 55%),
+        radial-gradient(circle at 90% 20%, rgba(45, 212, 191, 0.18), transparent 55%);
+      opacity: 0.8;
+      mix-blend-mode: screen;
+    }
+
+    .wheel-wrapper {
+      position: relative;
+      width: min(360px, 100%);
+      aspect-ratio: 1 / 1;
+      margin: 4px auto 10px;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      display: block;
+    }
+
+    .pointer {
+      position: absolute;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 16px solid transparent;
+      border-right: 16px solid transparent;
+      border-bottom: 24px solid #fbbf24;
+      filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.45));
+      z-index: 2;
+    }
+
+    .pointer-base {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 26px;
+      height: 26px;
+      background: radial-gradient(circle at 30% 30%, #fef9c3, #fbbf24);
+      border-radius: 50%;
+      box-shadow:
+        0 0 0 4px rgba(15, 23, 42, 1),
+        0 12px 18px rgba(15, 23, 42, 0.8);
+      z-index: 2;
+    }
+
+    .wheel-footer {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .controls-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 999px;
+      padding: 10px 22px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: radial-gradient(circle at 30% 0%, #bbf7d0, #22c55e);
+      color: #064e3b;
+      box-shadow:
+        0 10px 25px rgba(34, 197, 94, 0.35),
+        0 0 0 1px rgba(22, 163, 74, 0.8);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.1s ease;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: default;
+      box-shadow: none;
+      transform: none;
+      filter: grayscale(0.2);
+    }
+
+    .btn:not(:disabled):hover {
+      transform: translateY(-1px);
+      box-shadow:
+        0 16px 30px rgba(34, 197, 94, 0.45),
+        0 0 0 1px rgba(21, 128, 61, 0.9);
+      filter: brightness(1.02);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+      box-shadow:
+        0 8px 18px rgba(22, 163, 74, 0.4),
+        0 0 0 1px rgba(21, 128, 61, 0.9);
+    }
+
+    .btn.secondary {
+      background: rgba(15, 23, 42, 0.9);
+      color: var(--muted);
+      box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.6);
+      padding-inline: 14px;
+      font-size: 0.8rem;
+    }
+
+    .btn.secondary:hover {
+      box-shadow:
+        0 10px 24px rgba(15, 23, 42, 0.8),
+        0 0 0 1px rgba(209, 213, 219, 0.9);
+    }
+
+    .status-pill {
+      font-size: 0.8rem;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.55);
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #22c55e;
+      box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.25);
+    }
+
+    .result {
+      margin-top: 4px;
+      font-size: 0.95rem;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      max-width: 100%;
+      text-align: center;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .result strong {
+      color: #a5b4fc;
+    }
+
+    .result-muted {
+      opacity: 0.6;
+    }
+
+    .config-card {
+      border-radius: 18px;
+      background: #020617;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      padding: 14px 14px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .config-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 0 0, rgba(59, 130, 246, 0.22), transparent 55%),
+        radial-gradient(circle at 100% 0, rgba(244, 63, 94, 0.18), transparent 55%);
+      opacity: 0.7;
+      mix-blend-mode: screen;
+      pointer-events: none;
+    }
+
+    .config-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .config-header h2 {
+      font-size: 0.95rem;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .config-header h2 span.emoji {
+      font-size: 1.15rem;
+    }
+
+    .config-header .hint {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .textarea-wrap {
+      position: relative;
+      z-index: 1;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 180px;
+      resize: vertical;
+      border-radius: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.45);
+      background: rgba(15, 23, 42, 0.9);
+      color: var(--text);
+      padding: 9px 10px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      line-height: 1.35;
+      outline: none;
+      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.8);
+    }
+
+    textarea:focus {
+      border-color: rgba(248, 250, 252, 0.95);
+      box-shadow:
+        0 0 0 1px rgba(248, 250, 252, 0.9),
+        0 10px 24px rgba(15, 23, 42, 0.8);
+    }
+
+    textarea::placeholder {
+      color: rgba(156, 163, 175, 0.7);
+    }
+
+    .config-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      font-size: 0.78rem;
+      color: var(--muted);
+      position: relative;
+      z-index: 1;
+    }
+
+    .count {
+      opacity: 0.8;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 2px;
+    }
+
+    .toggle {
+      position: relative;
+      width: 40px;
+      height: 22px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      cursor: pointer;
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      padding: 1px;
+      transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .toggle-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #e5e7eb;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.8);
+      transform: translateX(0);
+      transition: transform 0.18s ease;
+    }
+
+    .toggle[data-on="true"] {
+      background: rgba(37, 99, 235, 0.18);
+      border-color: rgba(59, 130, 246, 0.9);
+      box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.5);
+    }
+
+    .toggle[data-on="true"] .toggle-thumb {
+      transform: translateX(18px);
+      background: #bfdbfe;
+    }
+
+    .toggle-label {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .toggle-label-main {
+      font-size: 0.83rem;
+      font-weight: 500;
+    }
+
+    .toggle-label-sub {
+      font-size: 0.76rem;
+      color: var(--muted);
+    }
+
+    .toggle-label-sub strong {
+      color: #bfdbfe;
+      font-weight: 600;
+    }
+
+    .danger-text {
+      color: var(--danger);
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>
+          <span class="emoji">🎯</span>
+          Team Lunch Wheel
+        </h1>
+        <div class="subtitle">Give fate (and Brovč) control over where you eat.</div>
+      </div>
+      <div class="chip">Celtra · Lunch RNG</div>
+    </header>
+
+    <section class="wheel-card">
+      <div class="wheel-wrapper">
+        <div class="pointer"></div>
+        <div class="pointer-base"></div>
+        <canvas id="wheel"></canvas>
+      </div>
+      <div class="wheel-footer">
+        <div class="controls-row">
+          <button id="spinBtn" class="btn">
+            <span>Spin the wheel</span>
+            <span>🍀</span>
+          </button>
+          <button id="shuffleBtn" class="btn secondary" title="Randomize slice positions">
+            Shuffle
+          </button>
+          <div class="status-pill" id="statusPill">
+            <span class="status-dot"></span>
+            <span id="statusText">Ready for next lunch.</span>
+          </div>
+        </div>
+        <div id="result" class="result result-muted">
+          Add at least one option to spin.
+        </div>
+      </div>
+    </section>
+
+    <section class="config-card">
+      <div class="config-header">
+        <h2>
+          <span class="emoji">📋</span>
+          Lunch options
+        </h2>
+        <div class="hint">One per line · Config updates live when Brovč is <em>not</em> coming.</div>
+      </div>
+
+      <div class="textarea-wrap">
+        <textarea id="optionsInput" spellcheck="false"></textarea>
+      </div>
+
+      <div class="config-footer">
+        <div class="toggle-row">
+          <div id="brovcToggle" class="toggle" data-on="false" role="switch" aria-checked="false" tabindex="0">
+            <div class="toggle-thumb"></div>
+          </div>
+          <div class="toggle-label">
+            <span class="toggle-label-main">Is Brovč coming?</span>
+            <span class="toggle-label-sub">
+              If yes, <strong>McDonald's only</strong>.
+              <span class="danger-text">No exceptions.</span>
+            </span>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <span class="count" id="countLabel">0 places</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    (function () {
+      const defaultOptions = [
+        "Taqeria Patron",
+        "Namaste indijska",
+        "Slovenska hiša Figovec",
+        "Šestica",
+        "Mala terasa",
+        "Pizza (pops)",
+        "ramen by maru",
+        "bowl Tink",
+        "pop's aperitivo",
+        "pop's burger",
+        "smash.",
+        "raw pasta"
+      ];
+
+      const brovcOnlyOptions = ["McDonald's"];
+
+      const canvas = document.getElementById("wheel");
+      const spinBtn = document.getElementById("spinBtn");
+      const shuffleBtn = document.getElementById("shuffleBtn");
+      const optionsInput = document.getElementById("optionsInput");
+      const resultEl = document.getElementById("result");
+      const countLabel = document.getElementById("countLabel");
+      const brovcToggle = document.getElementById("brovcToggle");
+      const statusText = document.getElementById("statusText");
+      const statusPill = document.getElementById("statusPill");
+
+      let baseOptions = [...defaultOptions];
+      let currentOptions = [...defaultOptions];
+      let currentAngle = 0;
+      let isSpinning = false;
+      let spinStartTime = 0;
+      let spinDuration = 4600;
+      let spinStartAngle = 0;
+      let spinTargetAngle = 0;
+
+      function setOptionsFromTextarea() {
+        if (isBrovcMode()) return;
+        const lines = optionsInput.value
+          .split("\n")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        baseOptions = lines.length ? lines : [];
+        currentOptions = [...baseOptions];
+        updateCount();
+        drawWheel();
+        updateResultPlaceholder();
+      }
+
+      function updateCount() {
+        const n = currentOptions.length;
+        if (!n) {
+          countLabel.textContent = "0 places";
+        } else if (n === 1) {
+          countLabel.textContent = "1 place";
+        } else {
+          countLabel.textContent = n + " places";
+        }
+      }
+
+      function updateResultPlaceholder() {
+        if (!currentOptions.length) {
+          resultEl.textContent = "Add at least one option to spin.";
+          resultEl.classList.add("result-muted");
+        } else {
+          resultEl.textContent = "Tap “Spin the wheel” to pick a lunch spot.";
+          resultEl.classList.add("result-muted");
+        }
+      }
+
+      function resizeCanvas() {
+        const rect = canvas.getBoundingClientRect();
+        const size = Math.min(rect.width, rect.height || rect.width);
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = size * dpr;
+        canvas.height = size * dpr;
+        const ctx = canvas.getContext("2d");
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawWheel();
+      }
+
+      function drawWheel() {
+        const ctx = canvas.getContext("2d");
+        const rect = canvas.getBoundingClientRect();
+        const size = Math.min(rect.width, rect.height || rect.width);
+        const radius = (size / 2) - 6;
+        canvas.width = size;
+        canvas.height = size;
+        ctx.clearRect(0, 0, size, size);
+        ctx.translate(size / 2, size / 2);
+
+        if (!currentOptions.length) {
+          ctx.beginPath();
+          ctx.arc(0, 0, radius, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(15,23,42, 0.9)";
+          ctx.fill();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = "rgba(148, 163, 184, 0.7)";
+          ctx.stroke();
+          ctx.font = "bold 14px system-ui";
+          ctx.fillStyle = "#9ca3af";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText("No options yet", 0, -4);
+          ctx.font = "12px system-ui";
+          ctx.fillText("Add places on the right", 0, 14);
+          ctx.resetTransform();
+          return;
+        }
+
+        const sliceAngle = (Math.PI * 2) / currentOptions.length;
+
+        for (let i = 0; i < currentOptions.length; i++) {
+          const startAngle = currentAngle + i * sliceAngle;
+          const endAngle = startAngle + sliceAngle;
+
+          const hue = (i * 360 / currentOptions.length + 200) % 360;
+          const sat = 60 + (i * 8) % 20;
+          const light = i % 2 === 0 ? 52 : 45;
+          const fill = `hsl(${hue}, ${sat}%, ${light}%)`;
+
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.arc(0, 0, radius, startAngle, endAngle);
+          ctx.closePath();
+          ctx.fillStyle = fill;
+          ctx.fill();
+
+          ctx.strokeStyle = "rgba(15,23,42,0.9)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * 0.25, 0, Math.PI * 2);
+        ctx.fillStyle = "#020617";
+        ctx.fill();
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = "rgba(15,23,42,1)";
+        ctx.stroke();
+
+        ctx.font = "12px system-ui";
+        ctx.fillStyle = "#f9fafb";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        for (let i = 0; i < currentOptions.length; i++) {
+          const startAngle = currentAngle + i * sliceAngle;
+          const angle = startAngle + sliceAngle / 2;
+
+          const textRadius = radius * 0.63;
+          const x = Math.cos(angle) * textRadius;
+          const y = Math.sin(angle) * textRadius;
+
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(angle);
+          const label = currentOptions[i];
+          const maxChars = 18;
+          const displayLabel = label.length > maxChars
+            ? label.slice(0, maxChars - 1) + "…"
+            : label;
+          ctx.fillText(displayLabel, 0, 0);
+          ctx.restore();
+        }
+
+        ctx.resetTransform();
+      }
+
+      function easeOutCubic(t) {
+        return 1 - Math.pow(1 - t, 3);
+      }
+
+      function spin() {
+        if (isSpinning || !currentOptions.length) return;
+
+        isSpinning = true;
+        spinBtn.disabled = true;
+        shuffleBtn.disabled = true;
+        setStatus("Spinning...", true);
+        resultEl.classList.add("result-muted");
+
+        const extraTurns = 6 + Math.floor(Math.random() * 3);
+        const finalOffset = Math.random() * Math.PI * 2;
+        spinStartTime = performance.now();
+        spinStartAngle = currentAngle;
+        spinTargetAngle = currentAngle + extraTurns * Math.PI * 2 + finalOffset;
+
+        function animate(now) {
+          const elapsed = now - spinStartTime;
+          const t = Math.min(elapsed / spinDuration, 1);
+          const eased = easeOutCubic(t);
+          currentAngle = spinStartAngle + (spinTargetAngle - spinStartAngle) * eased;
+          drawWheel();
+
+          if (t < 1) {
+            requestAnimationFrame(animate);
+          } else {
+            finishSpin();
+          }
+        }
+
+        requestAnimationFrame(animate);
+      }
+
+      function finishSpin() {
+        const sliceAngle = (Math.PI * 2) / currentOptions.length;
+        const normalized = (2 * Math.PI - (currentAngle % (2 * Math.PI)) + Math.PI / 2) % (2 * Math.PI);
+        const index = Math.floor(normalized / sliceAngle);
+        const winner = currentOptions[index];
+
+        resultEl.classList.remove("result-muted");
+        resultEl.innerHTML = `Today's victim is: <strong>${winner}</strong>`;
+
+        setStatus(isBrovcMode() ? "Brovč has decided." : "Decision locked in.", false);
+
+        setTimeout(() => {
+          isSpinning = false;
+          spinBtn.disabled = currentOptions.length === 0;
+          shuffleBtn.disabled = currentOptions.length === 0;
+        }, 150);
+      }
+
+      function shuffleOptions() {
+        if (isSpinning || currentOptions.length <= 1) return;
+        const arr = [...currentOptions];
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        currentOptions = arr;
+        drawWheel();
+        setStatus("Slices shuffled.", false);
+      }
+
+      function setStatus(text, spinning) {
+        statusText.textContent = text;
+        if (spinning) {
+          statusPill.style.borderColor = "rgba(251, 191, 36, 0.9)";
+        } else {
+          statusPill.style.borderColor = "rgba(148, 163, 184, 0.55)";
+        }
+      }
+
+      function isBrovcMode() {
+        return brovcToggle.getAttribute("data-on") === "true";
+      }
+
+      function applyBrovcMode(on) {
+        if (on) {
+          currentOptions = [...brovcOnlyOptions];
+          brovcToggle.setAttribute("data-on", "true");
+          brovcToggle.setAttribute("aria-checked", "true");
+          spinBtn.textContent = "Spin (McDonald's edition)";
+          setStatus("Brovč mode: McDonald's only.", false);
+        } else {
+          currentOptions = [...baseOptions];
+          brovcToggle.setAttribute("data-on", "false");
+          brovcToggle.setAttribute("aria-checked", "false");
+          spinBtn.textContent = "Spin the wheel";
+          setStatus("Regular lunch mode.", false);
+        }
+        updateCount();
+        drawWheel();
+        updateResultPlaceholder();
+        spinBtn.disabled = currentOptions.length === 0;
+        shuffleBtn.disabled = currentOptions.length <= 1;
+      }
+
+      function toggleBrovc() {
+        applyBrovcMode(!isBrovcMode());
+      }
+
+      spinBtn.addEventListener("click", spin);
+      shuffleBtn.addEventListener("click", shuffleOptions);
+
+      optionsInput.addEventListener("input", () => {
+        setOptionsFromTextarea();
+      });
+
+      brovcToggle.addEventListener("click", toggleBrovc);
+      brovcToggle.addEventListener("keydown", (e) => {
+        if (e.key === " " || e.key === "Enter") {
+          e.preventDefault();
+          toggleBrovc();
+        }
+      });
+
+      window.addEventListener("resize", () => {
+        resizeCanvas();
+      });
+
+      function init() {
+        optionsInput.value = defaultOptions.join("\n");
+        setOptionsFromTextarea();
+        applyBrovcMode(false);
+        resizeCanvas();
+      }
+
+      init();
+    })();
+  </script>
+</body>
+</html>
