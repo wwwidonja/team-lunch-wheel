@@ -44,6 +44,8 @@
       display: grid;
       grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
       gap: 20px;
+      position: relative;
+      z-index: 1;
     }
 
     @media (max-width: 800px) {
@@ -125,10 +127,13 @@
     }
 
     canvas {
+      display: block;
+    }
+
+    #wheel {
       width: 100%;
       height: 100%;
       border-radius: 50%;
-      display: block;
     }
 
     .pointer {
@@ -256,8 +261,8 @@
 
     .result {
       margin-top: 4px;
-      font-size: 0.95rem;
-      padding: 6px 10px;
+      font-size: 1rem;
+      padding: 8px 14px;
       border-radius: 999px;
       background: rgba(15, 23, 42, 0.9);
       border: 1px solid rgba(148, 163, 184, 0.5);
@@ -271,10 +276,11 @@
 
     .result strong {
       color: #a5b4fc;
+      font-weight: 700;
     }
 
     .result-muted {
-      opacity: 0.6;
+      opacity: 0.7;
     }
 
     .config-card {
@@ -443,9 +449,69 @@
       color: var(--danger);
       font-weight: 500;
     }
+
+    /* Winner banner */
+    .winner-banner {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.9);
+      padding: 14px 22px;
+      border-radius: 20px;
+      background: rgba(15, 23, 42, 0.97);
+      border: 1px solid rgba(250, 250, 250, 0.8);
+      box-shadow:
+        0 18px 40px rgba(0, 0, 0, 0.8),
+        0 0 0 1px rgba(15, 23, 42, 1);
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 20;
+      transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+      text-align: center;
+    }
+
+    .winner-banner.show {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    .winner-badge {
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: rgba(22, 163, 74, 0.18);
+      color: #bbf7d0;
+      border: 1px solid rgba(34, 197, 94, 0.9);
+      white-space: nowrap;
+    }
+
+    .winner-name {
+      font-weight: 700;
+      color: #fbbf24;
+      white-space: nowrap;
+    }
+
+    /* Confetti canvas */
+    #confettiCanvas {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 10;
+    }
   </style>
 </head>
 <body>
+  <canvas id="confettiCanvas"></canvas>
+  <div class="winner-banner" id="winnerBanner">
+    <span class="winner-badge">Selected</span>
+    <span>Lunch today: <span class="winner-name" id="winnerName"></span> 🎉</span>
+  </div>
   <div class="app">
     <header>
       <div>
@@ -545,15 +611,24 @@
       const brovcToggle = document.getElementById("brovcToggle");
       const statusText = document.getElementById("statusText");
       const statusPill = document.getElementById("statusPill");
+      const winnerBanner = document.getElementById("winnerBanner");
+      const winnerNameEl = document.getElementById("winnerName");
+
+      const confettiCanvas = document.getElementById("confettiCanvas");
+      const confettiCtx = confettiCanvas.getContext("2d");
 
       let baseOptions = [...defaultOptions];
       let currentOptions = [...defaultOptions];
       let currentAngle = 0;
       let isSpinning = false;
       let spinStartTime = 0;
-      let spinDuration = 4600;
+      const spinDuration = 4600;
       let spinStartAngle = 0;
       let spinTargetAngle = 0;
+
+      let confettiPieces = [];
+      let confettiAnimating = false;
+      let confettiEndTime = 0;
 
       function setOptionsFromTextarea() {
         if (isBrovcMode()) return;
@@ -589,25 +664,25 @@
         }
       }
 
-      function resizeCanvas() {
+      function resizeWheelCanvas() {
         const rect = canvas.getBoundingClientRect();
         const size = Math.min(rect.width, rect.height || rect.width);
-        const dpr = window.devicePixelRatio || 1;
-        canvas.width = size * dpr;
-        canvas.height = size * dpr;
-        const ctx = canvas.getContext("2d");
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        canvas.width = size;
+        canvas.height = size;
         drawWheel();
+      }
+
+      function resizeConfettiCanvas() {
+        confettiCanvas.width = window.innerWidth;
+        confettiCanvas.height = window.innerHeight;
       }
 
       function drawWheel() {
         const ctx = canvas.getContext("2d");
-        const rect = canvas.getBoundingClientRect();
-        const size = Math.min(rect.width, rect.height || rect.width);
+        const size = canvas.width;
         const radius = (size / 2) - 6;
-        canvas.width = size;
-        canvas.height = size;
         ctx.clearRect(0, 0, size, size);
+        ctx.save();
         ctx.translate(size / 2, size / 2);
 
         if (!currentOptions.length) {
@@ -625,7 +700,7 @@
           ctx.fillText("No options yet", 0, -4);
           ctx.font = "12px system-ui";
           ctx.fillText("Add places on the right", 0, 14);
-          ctx.resetTransform();
+          ctx.restore();
           return;
         }
 
@@ -685,7 +760,7 @@
           ctx.restore();
         }
 
-        ctx.resetTransform();
+        ctx.restore();
       }
 
       function easeOutCubic(t) {
@@ -726,12 +801,17 @@
 
       function finishSpin() {
         const sliceAngle = (Math.PI * 2) / currentOptions.length;
-        const normalized = (2 * Math.PI - (currentAngle % (2 * Math.PI)) + Math.PI / 2) % (2 * Math.PI);
+        const pointerAngle = -Math.PI / 2; // top of the wheel
+        const normalizedCurrent = ((currentAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+        const normalized = (pointerAngle - normalizedCurrent + 2 * Math.PI) % (2 * Math.PI);
         const index = Math.floor(normalized / sliceAngle);
         const winner = currentOptions[index];
 
         resultEl.classList.remove("result-muted");
-        resultEl.innerHTML = `Today's victim is: <strong>${winner}</strong>`;
+        resultEl.innerHTML = `Winner: <strong>${winner}</strong>`;
+
+        showWinnerBanner(winner);
+        triggerConfetti();
 
         setStatus(isBrovcMode() ? "Brovč has decided." : "Decision locked in.", false);
 
@@ -792,6 +872,85 @@
         applyBrovcMode(!isBrovcMode());
       }
 
+      // Winner banner helpers
+      let winnerBannerTimeout;
+
+      function showWinnerBanner(name) {
+        winnerNameEl.textContent = name;
+        winnerBanner.classList.add("show");
+        clearTimeout(winnerBannerTimeout);
+        winnerBannerTimeout = setTimeout(() => {
+          winnerBanner.classList.remove("show");
+        }, 4200);
+      }
+
+      // Confetti helpers
+      function createConfettiPiece() {
+        const colors = [
+          "#fbbf24",
+          "#22c55e",
+          "#38bdf8",
+          "#f97316",
+          "#a855f7",
+          "#f97373"
+        ];
+        return {
+          x: Math.random() * window.innerWidth,
+          y: -20 - Math.random() * 80,
+          size: 6 + Math.random() * 6,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          velocityX: -2 + Math.random() * 4,
+          velocityY: 4 + Math.random() * 4,
+          rotation: Math.random() * Math.PI * 2,
+          rotationSpeed: -0.2 + Math.random() * 0.4,
+          opacity: 0.8 + Math.random() * 0.2
+        };
+      }
+
+      function triggerConfetti() {
+        resizeConfettiCanvas();
+        confettiPieces = [];
+        const count = 200;
+        for (let i = 0; i < count; i++) {
+          confettiPieces.push(createConfettiPiece());
+        }
+        confettiEndTime = performance.now() + 1800;
+        if (!confettiAnimating) {
+          confettiAnimating = true;
+          requestAnimationFrame(confettiLoop);
+        }
+      }
+
+      function confettiLoop(now) {
+        confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+
+        confettiPieces.forEach((p) => {
+          p.x += p.velocityX;
+          p.y += p.velocityY;
+          p.rotation += p.rotationSpeed;
+
+          if (p.y > window.innerHeight + 20) {
+            p.y = -20;
+            p.x = Math.random() * window.innerWidth;
+          }
+
+          confettiCtx.save();
+          confettiCtx.translate(p.x, p.y);
+          confettiCtx.rotate(p.rotation);
+          confettiCtx.globalAlpha = p.opacity;
+          confettiCtx.fillStyle = p.color;
+          confettiCtx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+          confettiCtx.restore();
+        });
+
+        if (now < confettiEndTime) {
+          requestAnimationFrame(confettiLoop);
+        } else {
+          confettiAnimating = false;
+          confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+        }
+      }
+
       spinBtn.addEventListener("click", spin);
       shuffleBtn.addEventListener("click", shuffleOptions);
 
@@ -808,14 +967,16 @@
       });
 
       window.addEventListener("resize", () => {
-        resizeCanvas();
+        resizeWheelCanvas();
+        resizeConfettiCanvas();
       });
 
       function init() {
         optionsInput.value = defaultOptions.join("\n");
         setOptionsFromTextarea();
         applyBrovcMode(false);
-        resizeCanvas();
+        resizeWheelCanvas();
+        resizeConfettiCanvas();
       }
 
       init();
