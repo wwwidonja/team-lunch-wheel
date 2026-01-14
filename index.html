@@ -15,9 +15,7 @@
       --danger: #f97373;
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
@@ -72,9 +70,7 @@
       margin: 0;
     }
 
-    header h1 span.emoji {
-      font-size: 1.7rem;
-    }
+    header h1 span.emoji { font-size: 1.7rem; }
 
     header .subtitle {
       font-size: 0.8rem;
@@ -126,9 +122,7 @@
       margin: 4px auto 10px;
     }
 
-    canvas {
-      display: block;
-    }
+    canvas { display: block; }
 
     #wheel {
       width: 100%;
@@ -279,9 +273,7 @@
       font-weight: 700;
     }
 
-    .result-muted {
-      opacity: 0.7;
-    }
+    .result-muted { opacity: 0.7; }
 
     .config-card {
       border-radius: 18px;
@@ -324,19 +316,14 @@
       gap: 7px;
     }
 
-    .config-header h2 span.emoji {
-      font-size: 1.15rem;
-    }
+    .config-header h2 span.emoji { font-size: 1.15rem; }
 
     .config-header .hint {
       font-size: 0.8rem;
       color: var(--muted);
     }
 
-    .textarea-wrap {
-      position: relative;
-      z-index: 1;
-    }
+    .textarea-wrap { position: relative; z-index: 1; }
 
     textarea {
       width: 100%;
@@ -361,9 +348,7 @@
         0 10px 24px rgba(15, 23, 42, 0.8);
     }
 
-    textarea::placeholder {
-      color: rgba(156, 163, 175, 0.7);
-    }
+    textarea::placeholder { color: rgba(156, 163, 175, 0.7); }
 
     .config-footer {
       display: flex;
@@ -377,9 +362,7 @@
       z-index: 1;
     }
 
-    .count {
-      opacity: 0.8;
-    }
+    .count { opacity: 0.8; }
 
     .toggle-row {
       display: flex;
@@ -506,12 +489,15 @@
     }
   </style>
 </head>
+
 <body>
   <canvas id="confettiCanvas"></canvas>
+
   <div class="winner-banner" id="winnerBanner">
     <span class="winner-badge">Selected</span>
     <span>Lunch today: <span class="winner-name" id="winnerName"></span> 🎉</span>
   </div>
+
   <div class="app">
     <header>
       <div>
@@ -571,8 +557,8 @@
           <div class="toggle-label">
             <span class="toggle-label-main">Is Brovč coming?</span>
             <span class="toggle-label-sub">
-              If yes, <strong>McDonald's only</strong>.
-              <span class="danger-text">No exceptions.</span>
+              If yes, <strong>McDonald's is banned</strong>.
+              <span class="danger-text">Matic approved.</span>
             </span>
           </div>
         </div>
@@ -600,7 +586,12 @@
         "raw pasta"
       ];
 
-      const brovcOnlyOptions = ["McDonald's"];
+      // Brovč mode now EXCLUDES McDonald's (Matic stopped eating it).
+      const MCD_PATTERNS = [
+        /mcdonald'?s/i,
+        /\bmc\s*donald'?s\b/i,
+        /\bmcd\b/i
+      ];
 
       const canvas = document.getElementById("wheel");
       const spinBtn = document.getElementById("spinBtn");
@@ -630,12 +621,24 @@
       let confettiAnimating = false;
       let confettiEndTime = 0;
 
+      // Easter egg state: if McD got filtered out in Brovč mode, we celebrate Matic.
+      let maticEasterEggArmed = false;
+
+      function isMcD(option) {
+        return MCD_PATTERNS.some((re) => re.test(option));
+      }
+
+      function filterForBrovcMode(options) {
+        return options.filter((o) => !isMcD(o));
+      }
+
       function setOptionsFromTextarea() {
-        if (isBrovcMode()) return;
+        if (isBrovcMode()) return; // keep "config updates live when Brovč is not coming"
         const lines = optionsInput.value
           .split("\n")
           .map((s) => s.trim())
           .filter(Boolean);
+
         baseOptions = lines.length ? lines : [];
         currentOptions = [...baseOptions];
         updateCount();
@@ -645,18 +648,20 @@
 
       function updateCount() {
         const n = currentOptions.length;
-        if (!n) {
-          countLabel.textContent = "0 places";
-        } else if (n === 1) {
-          countLabel.textContent = "1 place";
-        } else {
-          countLabel.textContent = n + " places";
-        }
+        if (!n) countLabel.textContent = "0 places";
+        else if (n === 1) countLabel.textContent = "1 place";
+        else countLabel.textContent = n + " places";
       }
 
       function updateResultPlaceholder() {
         if (!currentOptions.length) {
           resultEl.textContent = "Add at least one option to spin.";
+          resultEl.classList.add("result-muted");
+          return;
+        }
+
+        if (isBrovcMode()) {
+          resultEl.textContent = "Brovč is coming: anything except McDonald's.";
           resultEl.classList.add("result-muted");
         } else {
           resultEl.textContent = "Tap “Spin the wheel” to pick a lunch spot.";
@@ -697,9 +702,9 @@
           ctx.fillStyle = "#9ca3af";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText("No options yet", 0, -4);
+          ctx.fillText(isBrovcMode() ? "McDonald's removed" : "No options yet", 0, -4);
           ctx.font = "12px system-ui";
-          ctx.fillText("Add places on the right", 0, 14);
+          ctx.fillText(isBrovcMode() ? "Matic approves ✅" : "Add places on the right", 0, 14);
           ctx.restore();
           return;
         }
@@ -789,11 +794,8 @@
           currentAngle = spinStartAngle + (spinTargetAngle - spinStartAngle) * eased;
           drawWheel();
 
-          if (t < 1) {
-            requestAnimationFrame(animate);
-          } else {
-            finishSpin();
-          }
+          if (t < 1) requestAnimationFrame(animate);
+          else finishSpin();
         }
 
         requestAnimationFrame(animate);
@@ -811,14 +813,15 @@
         resultEl.innerHTML = `Winner: <strong>${winner}</strong>`;
 
         showWinnerBanner(winner);
-        triggerConfetti();
+        triggerConfetti(maticEasterEggArmed ? "matic" : "default");
+        maticEasterEggArmed = false;
 
-        setStatus(isBrovcMode() ? "Brovč has decided." : "Decision locked in.", false);
+        setStatus(isBrovcMode() ? "Brovč has avoided the arches." : "Decision locked in.", false);
 
         setTimeout(() => {
           isSpinning = false;
           spinBtn.disabled = currentOptions.length === 0;
-          shuffleBtn.disabled = currentOptions.length === 0;
+          shuffleBtn.disabled = currentOptions.length <= 1;
         }, 150);
       }
 
@@ -836,11 +839,9 @@
 
       function setStatus(text, spinning) {
         statusText.textContent = text;
-        if (spinning) {
-          statusPill.style.borderColor = "rgba(251, 191, 36, 0.9)";
-        } else {
-          statusPill.style.borderColor = "rgba(148, 163, 184, 0.55)";
-        }
+        statusPill.style.borderColor = spinning
+          ? "rgba(251, 191, 36, 0.9)"
+          : "rgba(148, 163, 184, 0.55)";
       }
 
       function isBrovcMode() {
@@ -849,11 +850,25 @@
 
       function applyBrovcMode(on) {
         if (on) {
-          currentOptions = [...brovcOnlyOptions];
+          const before = [...baseOptions];
+          const filtered = filterForBrovcMode(baseOptions);
+
+          // Easter egg trigger: if we actually removed something McD-ish.
+          const removedCount = before.length - filtered.length;
+          maticEasterEggArmed = removedCount > 0;
+
+          currentOptions = filtered;
+
           brovcToggle.setAttribute("data-on", "true");
           brovcToggle.setAttribute("aria-checked", "true");
-          spinBtn.textContent = "Spin (McDonald's edition)";
-          setStatus("Brovč mode: McDonald's only.", false);
+          spinBtn.textContent = "Spin (no McD)";
+          setStatus("Brovč mode: anything but McDonald's.", false);
+
+          if (removedCount > 0) {
+            // Fun little pop-up + confetti = “Matic has stopped eating McDonald's!”
+            showWinnerBanner("McDonald's removed — Matic approves ✅");
+            triggerConfetti("matic");
+          }
         } else {
           currentOptions = [...baseOptions];
           brovcToggle.setAttribute("data-on", "false");
@@ -861,11 +876,19 @@
           spinBtn.textContent = "Spin the wheel";
           setStatus("Regular lunch mode.", false);
         }
+
         updateCount();
         drawWheel();
         updateResultPlaceholder();
+
+        // If Brovč mode filtered everything out, disable spin & show a helpful hint.
         spinBtn.disabled = currentOptions.length === 0;
         shuffleBtn.disabled = currentOptions.length <= 1;
+
+        if (isBrovcMode() && currentOptions.length === 0) {
+          resultEl.textContent = "All options were McDonald's. Add literally anything else 😅";
+          resultEl.classList.add("result-muted");
+        }
       }
 
       function toggleBrovc() {
@@ -885,15 +908,15 @@
       }
 
       // Confetti helpers
-      function createConfettiPiece() {
-        const colors = [
-          "#fbbf24",
-          "#22c55e",
-          "#38bdf8",
-          "#f97316",
-          "#a855f7",
-          "#f97373"
-        ];
+      function createConfettiPiece(paletteName) {
+        const palettes = {
+          default: ["#fbbf24", "#22c55e", "#38bdf8", "#f97316", "#a855f7", "#f97373"],
+          // Easter egg palette: “Matic’s McD detox” vibes (fresh + celebratory).
+          matic: ["#22c55e", "#86efac", "#38bdf8", "#bfdbfe", "#fbbf24"]
+        };
+
+        const colors = palettes[paletteName] || palettes.default;
+
         return {
           x: Math.random() * window.innerWidth,
           y: -20 - Math.random() * 80,
@@ -907,14 +930,14 @@
         };
       }
 
-      function triggerConfetti() {
+      function triggerConfetti(mode) {
         resizeConfettiCanvas();
         confettiPieces = [];
-        const count = 200;
+        const count = mode === "matic" ? 140 : 200;
         for (let i = 0; i < count; i++) {
-          confettiPieces.push(createConfettiPiece());
+          confettiPieces.push(createConfettiPiece(mode));
         }
-        confettiEndTime = performance.now() + 1800;
+        confettiEndTime = performance.now() + (mode === "matic" ? 1400 : 1800);
         if (!confettiAnimating) {
           confettiAnimating = true;
           requestAnimationFrame(confettiLoop);
